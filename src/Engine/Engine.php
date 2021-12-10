@@ -9,6 +9,7 @@ declare(strict_types=1);
  * @contact  group@hyperf.io
  * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
+
 namespace Hyperf\Scout\Engine;
 
 use Hyperf\Database\Model\Collection;
@@ -31,24 +32,7 @@ abstract class Engine
     /**
      * Perform the given search on the engine.
      */
-    abstract public function search(Builder $builder);
-
-    /**
-     * Perform the given search on the engine.
-     */
     abstract public function paginate(Builder $builder, int $perPage, int $page);
-
-    /**
-     * Pluck and return the primary keys of the given results.
-     * @param mixed $results
-     */
-    abstract public function mapIds($results): BaseCollection;
-
-    /**
-     * Map the given results to instances of the given model.
-     * @param mixed $results
-     */
-    abstract public function map(Builder $builder, $results, Model $model): Collection;
 
     /**
      * Get the total count from a raw result returned by the engine.
@@ -62,12 +46,41 @@ abstract class Engine
     abstract public function flush(Model $model): void;
 
     /**
+     * 搜索数据结构
+     * @param Model $model
+     */
+    abstract public function createStruct(Model $model): void;
+
+    /**
+     * 删除结构
+     * @param Model $model
+     */
+    abstract public function dropStruct(Model $model): void;
+
+    /**
+     * 重新生成
+     * @param Model $model
+     */
+    abstract public function regenStruct(Model $model):void;
+
+    /**
      * Get the results of the query as a Collection of primary keys.
      */
     public function keys(Builder $builder): BaseCollection
     {
         return $this->mapIds($this->search($builder));
     }
+
+    /**
+     * Pluck and return the primary keys of the given results.
+     * @param mixed $results
+     */
+    abstract public function mapIds($results): BaseCollection;
+
+    /**
+     * Perform the given search on the engine.
+     */
+    abstract public function search(Builder $builder);
 
     /**
      * Get the results of the given query mapped onto models.
@@ -80,4 +93,10 @@ abstract class Engine
             $builder->model
         );
     }
+
+    /**
+     * Map the given results to instances of the given model.
+     * @param mixed $results
+     */
+    abstract public function map(Builder $builder, $results, Model $model): Collection;
 }

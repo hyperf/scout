@@ -9,6 +9,7 @@ declare(strict_types=1);
  * @contact  group@hyperf.io
  * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
+
 namespace Hyperf\Scout\Console;
 
 use Hyperf\Command\Command;
@@ -41,8 +42,8 @@ class ImportCommand extends Command
     {
         define('SCOUT_COMMAND', true);
         $class = $this->input->getArgument('model');
-        $chunk = (int) $this->input->getOption('chunk');
-        $column = (string) $this->input->getOption('column');
+        $chunk = (int)$this->input->getOption('chunk');
+        $column = (string)$this->input->getOption('column');
         $model = new $class();
         $provider = ApplicationContext::getContainer()->get(ListenerProviderInterface::class);
         $provider->on(ModelsImported::class, function ($event) use ($class) {

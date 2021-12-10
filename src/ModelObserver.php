@@ -9,6 +9,7 @@ declare(strict_types=1);
  * @contact  group@hyperf.io
  * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
+
 namespace Hyperf\Scout;
 
 use Hyperf\Database\Model\Events\Deleted;
@@ -44,37 +45,6 @@ class ModelObserver
     }
 
     /**
-     * Determine if syncing is disabled for the given class or model.
-     *
-     * @param object|string $class
-     */
-    public static function syncingDisabledFor($class): bool
-    {
-        $class = is_object($class) ? get_class($class) : $class;
-        $syncingDisabled = (array) Context::get('syncing_disabled', []);
-        return array_key_exists($class, $syncingDisabled);
-    }
-
-    /**
-     * Handle the saved event for the model.
-     */
-    public function saved(Saved $event): void
-    {
-        /** @var SearchableInterface $model */
-        $model = $event->getModel();
-
-        if (static::syncingDisabledFor($model)) {
-            return;
-        }
-
-        if (! $model->shouldBeSearchable()) {
-            $model->unsearchable();
-            return;
-        }
-        $model->searchable();
-    }
-
-    /**
      * Handle the deleted event for the model.
      */
     public function deleted(Deleted $event)
@@ -90,6 +60,45 @@ class ModelObserver
         } else {
             $model->unsearchable();
         }
+    }
+
+    /**
+     * Determine if syncing is disabled for the given class or model.
+     *
+     * @param object|string $class
+     */
+    public static function syncingDisabledFor($class): bool
+    {
+        $class = is_object($class) ? get_class($class) : $class;
+        $syncingDisabled = (array)Context::get('syncing_disabled', []);
+        return array_key_exists($class, $syncingDisabled);
+    }
+
+    /**
+     * Determine if the given model uses soft deletes.
+     */
+    protected function usesSoftDelete(Model $model): bool
+    {
+        return in_array(SoftDeletes::class, class_uses_recursive($model));
+    }
+
+    /**
+     * Handle the saved event for the model.
+     */
+    public function saved(Saved $event): void
+    {
+        /** @var SearchableInterface $model */
+        $model = $event->getModel();
+
+        if (static::syncingDisabledFor($model)) {
+            return;
+        }
+
+        if (!$model->shouldBeSearchable()) {
+            $model->unsearchable();
+            return;
+        }
+        $model->searchable();
     }
 
     /**
@@ -113,13 +122,5 @@ class ModelObserver
     {
         $model = $event->getModel();
         $this->saved(new Saved($model));
-    }
-
-    /**
-     * Determine if the given model uses soft deletes.
-     */
-    protected function usesSoftDelete(Model $model): bool
-    {
-        return in_array(SoftDeletes::class, class_uses_recursive($model));
     }
 }

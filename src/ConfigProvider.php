@@ -9,8 +9,10 @@ declare(strict_types=1);
  * @contact  group@hyperf.io
  * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
+
 namespace Hyperf\Scout;
 
+use Hyperf\Scout\Console\CreateCommand;
 use Hyperf\Scout\Console\FlushCommand;
 use Hyperf\Scout\Console\ImportCommand;
 use Hyperf\Scout\Engine\Engine;
@@ -26,6 +28,7 @@ class ConfigProvider
             'commands' => [
                 ImportCommand::class,
                 FlushCommand::class,
+                CreateCommand::class,
             ],
             'publish' => [
                 [

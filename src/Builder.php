@@ -9,6 +9,7 @@ declare(strict_types=1);
  * @contact  group@hyperf.io
  * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
+
 namespace Hyperf\Scout;
 
 use Closure;
@@ -115,17 +116,6 @@ class Builder
     }
 
     /**
-     * Include soft deleted records in the results.
-     *
-     * @return $this
-     */
-    public function withTrashed(): Builder
-    {
-        unset($this->wheres['__soft_deleted']);
-        return $this;
-    }
-
-    /**
      * Include only soft deleted records in the results.
      *
      * @return $this
@@ -135,6 +125,17 @@ class Builder
         return tap($this->withTrashed(), function () {
             $this->wheres['__soft_deleted'] = 1;
         });
+    }
+
+    /**
+     * Include soft deleted records in the results.
+     *
+     * @return $this
+     */
+    public function withTrashed(): Builder
+    {
+        unset($this->wheres['__soft_deleted']);
+        return $this;
     }
 
     /**
@@ -161,6 +162,14 @@ class Builder
     }
 
     /**
+     * Pass the query to a given callback.
+     */
+    public function tap(Closure $callback): Builder
+    {
+        return $this->when(true, $callback);
+    }
+
+    /**
      * Apply the callback's query changes if the given "value" is true.
      * @param mixed $value
      */
@@ -173,14 +182,6 @@ class Builder
             return $default($this, $value) ?: $this;
         }
         return $this;
-    }
-
-    /**
-     * Pass the query to a given callback.
-     */
-    public function tap(Closure $callback): Builder
-    {
-        return $this->when(true, $callback);
     }
 
     /**
@@ -200,6 +201,14 @@ class Builder
     public function raw()
     {
         return $this->engine()->search($this);
+    }
+
+    /**
+     * Get the engine that should handle the query.
+     */
+    protected function engine()
+    {
+        return $this->model->searchableUsing();
     }
 
     /**
@@ -262,13 +271,5 @@ class Builder
             'pageName' => $pageName,
         ]));
         return $paginator->appends('query', $this->query);
-    }
-
-    /**
-     * Get the engine that should handle the query.
-     */
-    protected function engine()
-    {
-        return $this->model->searchableUsing();
     }
 }

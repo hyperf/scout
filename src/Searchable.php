@@ -9,8 +9,10 @@ declare(strict_types=1);
  * @contact  group@hyperf.io
  * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
+
 namespace Hyperf\Scout;
 
+use Closure;
 use Hyperf\Database\Model\Collection;
 use Hyperf\Database\Model\Collection as BaseCollection;
 use Hyperf\ModelListener\Collector\ListenerCollector;
@@ -21,16 +23,15 @@ use Hyperf\Utils\Coroutine;
 trait Searchable
 {
     /**
+     * @var Coroutine\Concurrent
+     */
+    protected static $scoutRunner;
+    /**
      * Additional metadata attributes managed by Scout.
      *
      * @var array
      */
     protected $scoutMetadata = [];
-
-    /**
-     * @var Coroutine\Concurrent
-     */
-    protected static $scoutRunner;
 
     /**
      * Boot the trait.
@@ -71,6 +72,33 @@ trait Searchable
     }
 
     /**
+     * Dispatch the coroutine to scout the given models.
+     */
+    protected static function dispatchSearchableJob(callable $job)
+    {
+        if (!Coroutine::inCoroutine()) {
+            $job();
+            return;
+        }
+        if (defined('SCOUT_COMMAND')) {
+            if (!(static::$scoutRunner instanceof Coroutine\Concurrent)) {
+                static::$scoutRunner = new Coroutine\Concurrent((new static())->syncWithSearchUsingConcurency());
+            }
+            self::$scoutRunner->create($job);
+        } else {
+            Coroutine::defer($job);
+        }
+    }
+
+    /**
+     * Get the concurrency that should be used when syncing.
+     */
+    public function syncWithSearchUsingConcurency(): int
+    {
+        return (int)config('scout.concurrency', 100);
+    }
+
+    /**
      * Dispatch the coroutine to make the given models unsearchable.
      * @param mixed $models
      */
@@ -86,19 +114,9 @@ trait Searchable
     }
 
     /**
-     * Determine if the model should be searchable.
-     *
-     * @return bool
-     */
-    public function shouldBeSearchable()
-    {
-        return true;
-    }
-
-    /**
      * Perform a search against the model's indexed data.
      */
-    public static function search(?string $query = '', ?\Closure $callback = null)
+    public static function search(?string $query = '', ?Closure $callback = null)
     {
         return make(Builder::class, [
             'model' => new static(),
@@ -106,6 +124,16 @@ trait Searchable
             'callback' => $callback,
             'softDelete' => static::usesSoftDelete() && config('scout.soft_delete', false),
         ]);
+    }
+
+    /**
+     * Determine if the current class should use soft deletes with searching.
+     *
+     * @return bool
+     */
+    protected static function usesSoftDelete()
+    {
+        return in_array(SoftDeletes::class, class_uses_recursive(get_called_class()));
     }
 
     /**
@@ -124,20 +152,71 @@ trait Searchable
     }
 
     /**
-     * Make the given model instance searchable.
-     */
-    public function searchable(): void
-    {
-        $this->newCollection([$this])->searchable();
-    }
-
-    /**
      * Remove all instances of the model from the search index.
      */
     public static function removeAllFromSearch(): void
     {
         $self = new static();
         $self->searchableUsing()->flush($self);
+    }
+
+    /**
+     * Get the Scout engine for the model.
+     *
+     * @return Engine
+     */
+    public function searchableUsing()
+    {
+        return ApplicationContext::getContainer()->get(Engine::class);
+    }
+
+    /**
+     * Temporarily disable search syncing for the given callback.
+     *
+     * @return mixed
+     */
+    public static function withoutSyncingToSearch(callable $callback)
+    {
+        static::disableSearchSyncing();
+        try {
+            return $callback();
+        } finally {
+            static::enableSearchSyncing();
+        }
+    }
+
+    /**
+     * Disable search syncing for this model.
+     */
+    public static function disableSearchSyncing(): void
+    {
+        ModelObserver::disableSyncingFor(get_called_class());
+    }
+
+    /**
+     * Enable search syncing for this model.
+     */
+    public static function enableSearchSyncing(): void
+    {
+        ModelObserver::enableSyncingFor(get_called_class());
+    }
+
+    /**
+     * Determine if the model should be searchable.
+     *
+     * @return bool
+     */
+    public function shouldBeSearchable()
+    {
+        return true;
+    }
+
+    /**
+     * Make the given model instance searchable.
+     */
+    public function searchable(): void
+    {
+        $this->newCollection([$this])->searchable();
     }
 
     /**
@@ -169,34 +248,13 @@ trait Searchable
     }
 
     /**
-     * Enable search syncing for this model.
-     */
-    public static function enableSearchSyncing(): void
-    {
-        ModelObserver::enableSyncingFor(get_called_class());
-    }
-
-    /**
-     * Disable search syncing for this model.
-     */
-    public static function disableSearchSyncing(): void
-    {
-        ModelObserver::disableSyncingFor(get_called_class());
-    }
-
-    /**
-     * Temporarily disable search syncing for the given callback.
+     * Get the key name used to index the model.
      *
      * @return mixed
      */
-    public static function withoutSyncingToSearch(callable $callback)
+    public function getScoutKeyName()
     {
-        static::disableSearchSyncing();
-        try {
-            return $callback();
-        } finally {
-            static::enableSearchSyncing();
-        }
+        return $this->getQualifiedKeyName();
     }
 
     /**
@@ -220,24 +278,6 @@ trait Searchable
     }
 
     /**
-     * Get the Scout engine for the model.
-     *
-     * @return mixed
-     */
-    public function searchableUsing()
-    {
-        return ApplicationContext::getContainer()->get(Engine::class);
-    }
-
-    /**
-     * Get the concurrency that should be used when syncing.
-     */
-    public function syncWithSearchUsingConcurency(): int
-    {
-        return (int) config('scout.concurrency', 100);
-    }
-
-    /**
      * Sync the soft deleted status for this model into the metadata.
      *
      * @return $this
@@ -245,16 +285,6 @@ trait Searchable
     public function pushSoftDeleteMetadata()
     {
         return $this->withScoutMetadata('__soft_deleted', $this->trashed() ? 1 : 0);
-    }
-
-    /**
-     * Get all Scout related metadata.
-     *
-     * @return array
-     */
-    public function scoutMetadata()
-    {
-        return $this->scoutMetadata;
     }
 
     /**
@@ -271,6 +301,16 @@ trait Searchable
     }
 
     /**
+     * Get all Scout related metadata.
+     *
+     * @return array
+     */
+    public function scoutMetadata(): array
+    {
+        return $this->scoutMetadata;
+    }
+
+    /**
      * Get the value used to index the model.
      *
      * @return mixed
@@ -280,42 +320,24 @@ trait Searchable
         return $this->getKey();
     }
 
-    /**
-     * Get the key name used to index the model.
-     *
-     * @return mixed
-     */
-    public function getScoutKeyName()
+    public function searchableStruct(): array
     {
-        return $this->getQualifiedKeyName();
+        return [];
     }
 
     /**
-     * Dispatch the coroutine to scout the given models.
+     * 创建索引结构
      */
-    protected static function dispatchSearchableJob(callable $job)
+    public function searchableCreateStruct()
     {
-        if (! Coroutine::inCoroutine()) {
-            $job();
-            return;
-        }
-        if (defined('SCOUT_COMMAND')) {
-            if (! (static::$scoutRunner instanceof Coroutine\Concurrent)) {
-                static::$scoutRunner = new Coroutine\Concurrent((new static())->syncWithSearchUsingConcurency());
-            }
-            self::$scoutRunner->create($job);
-        } else {
-            Coroutine::defer($job);
-        }
+        $this->searchableUsing()->createStruct($this);
     }
 
     /**
-     * Determine if the current class should use soft deletes with searching.
-     *
-     * @return bool
+     * 删除索引结构
      */
-    protected static function usesSoftDelete()
+    public function searchableDropStruct()
     {
-        return in_array(SoftDeletes::class, class_uses_recursive(get_called_class()));
+        $this->searchableUsing()->dropStruct($this);
     }
 }

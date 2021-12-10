@@ -9,6 +9,7 @@ declare(strict_types=1);
  * @contact  group@hyperf.io
  * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
+
 namespace Hyperf\Scout\Engine;
 
 use Hyperf\Database\Model\Collection;
@@ -79,6 +80,18 @@ class NullEngine extends Engine
      * Flush all of the model's records from the engine.
      */
     public function flush(Model $model): void
+    {
+    }
+
+    public function createStruct(Model $model): void
+    {
+    }
+
+    public function dropStruct(Model $model): void
+    {
+    }
+
+    public function regenStruct(Model $model): void
     {
     }
 }

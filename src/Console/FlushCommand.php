@@ -9,6 +9,7 @@ declare(strict_types=1);
  * @contact  group@hyperf.io
  * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
+
 namespace Hyperf\Scout\Console;
 
 use Hyperf\Command\Annotation\Command;
@@ -42,7 +43,8 @@ class FlushCommand extends HyperfCommand
         define('SCOUT_COMMAND', true);
         $class = $this->input->getArgument('model');
         $model = new $class();
-        $model::removeAllFromSearch();
+        $model->searchableDropStruct();
+        // $model::removeAllFromSearch();
         $this->info('All [' . $class . '] records have been flushed.');
     }
 
