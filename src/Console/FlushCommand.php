@@ -43,8 +43,8 @@ class FlushCommand extends HyperfCommand
         define('SCOUT_COMMAND', true);
         $class = $this->input->getArgument('model');
         $model = new $class();
+        $model::removeAllFromSearch();
         $model->searchableDropStruct();
-        // $model::removeAllFromSearch();
         $this->info('All [' . $class . '] records have been flushed.');
     }
 
